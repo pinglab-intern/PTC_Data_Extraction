@@ -9,25 +9,28 @@ Created on Thu Oct  3 17:33:31 2019
 #1. Maintain list of PMIDs from PubMed for a specific search query
 #2. Convert that list into a format searchable in PubTator Central (PTC)
 #3. Use PTC API to get annotated articles (right now just 100 but should be able
-#to do up to 1000) for PMID list. Right now in XML format
+#to do up to 1000) for PMID list. Right now in Pubtator Format
+#4. Write data to csv file, then read back in and parse into df
 
 
 #To-do:
-#Store the
-#Learn how to parse BioC XML format and store results in desired format
-    #More research needed on etree/element tree - python library for parsing xml
-#Desired format something like a table or tsv file with each PMID, the related disease,
-#and the corresponding MESH id
+#Convert main body of script into a function that can be used to make multiple calls to api
+#Figure out how to search PubMed in "batches"... 
+    #Need to research using "usehistory" and "restart" e-utilities
 
-#Challenges:
-#Seems that PubTator API Will only let me pull 1000 articles at a time.
-#Possible workaround is to search in batches of 1000. Probably can just split
-#big PMID list into around 12 parts (there are about 12,000 query results for heart
-# failure) and then run my (to be created) parser function 12 different times
+
 
 
 from Bio import Entrez
 import requests
+import xml.etree.ElementTree as ET
+from lxml import etree
+import csv
+import json
+import pandas as pd
+import urllib.parse
+
+
 
 
 
@@ -36,8 +39,10 @@ import requests
 def search(query):
     Entrez.email = 'marleejzinsser@gmail.com'
     handle = Entrez.esearch(db='pubmed', 
+                            restart = '100',
                             sort='relevance', 
                             retmax='100',
+                            usehistory = 'y',
                             retmode='xml', 
                             term=query)
     results = Entrez.read(handle)
@@ -46,8 +51,9 @@ def search(query):
 #Use my search function to search for 'heart failure'
 results = search('heart failure')
 #Store the PMIDs
-id_list = results['IdList']
+#id_list = results['IdList']
 
+id_list = results['IdList']
 #This line gives me a comma-separated list, suitable format for a get call to 
 #PubTator Central API
 ids = ','.join(id_list)
@@ -59,17 +65,37 @@ response0 = requests.get("https://www.ncbi.nlm.nih.gov/research/pubtator-api/pub
 response1 = requests.get("https://www.ncbi.nlm.nih.gov/research/pubtator-api/publications/export/pubtator?pmids= 31555894,31556034")
 response2 = requests.get("https://www.ncbi.nlm.nih.gov/research/pubtator-api/publications/export/pubtator?pmids= 29519873,30093543,30030334,28780577,29490935,28754809,29305560,30262636,27048772,29622597,28775102,29440452,28270426,30496744,30311498,27492941,30355727,30467108,29556692,29129702,29940142,30426860,27056969,29657079,31010113,30902185,30867288,30934680,30760547,30641441,30414045,30191481,30515977,30549006,30310926,29791869,29127235,29034473,30514557,30247170,30217578,29544410,29500602,30482191,30474554,30071487,30642654,30205856,29400650,29189081,29063675,29294390,30012423,29766347,30636220,29982937,29980429,29987831,26661320,28359939,30051388,28595547,30989444,30223427,27402805,30227610,30225714,29574800,26438784,28920469,30786071,30357874,30097045,30009777,30047538,29859753,29747223,29160855,28842438,29962876,29935580,29929790,30571359,29679848,29272987,29196133,30884846,27055812,29430653,28635515,29992494,30268703,29538649,30406290,30169913,30404073,29852125,31278142,28574157,30528680")
 
-# Get call that allows me to speciy Disease as type, enter 100-1000 PMIDS, and specify format as BioC, json, or PubMed
-#Not sure if easier to work with PubMed or BioC format
 
-##Apparently I cannot enter "ids" as my list but instead have to print "ids" 
-#and then copy and paste the result into my get call... Not good for large numbers
-#of PMIDs-- Need to find a better way to do this
-response3 = requests.get("https://www.ncbi.nlm.nih.gov/CBBresearch/Lu/Demo/RESTful/tmTool.cgi/Disease/30674544,29079633,29802180,28780577,30570223,29764969,28982721,30021848,29386325,30009777,30868824,30594544,30311713,31079691,30095974,29806100,30268703,29175976,30073785,30071487,29917301,30093543,31204376,31079697,30629342,30092456,28463462,28798192,29650126,31433919,29710416,30709972,30361818,30701738,29667017,28490619,30269081,31410012,31161225,31144130,29371374,28045338,30835970,30788904,30537261,29550354,29935580,29305560,30930241,30717842,30411833,30175905,30361271,28635515,29482026,31165607,30390173,30264282,31050223,30867288,30592365,30311437,29186485,30092100,30600580,30311454,30571191,29953279,29953275,30916595,30784910,30935417,30251884,29987595,27830456,29932770,29352071,29269379,29405611,30922342,30548748,30062681,30922287,30078811,28980368,29984916,30814769,30595254,30565987,30562095,30042165,29785543,29667019,31308326,28668906,30530045,30471348,30318559,29753424,30798691/BioC/")
-
-#Print the responses in (currently) BioC format. 
-print (response3.text.encode("utf-8"))
+#Construct a url from the list of IDs plus the base https components
+url = "https://www.ncbi.nlm.nih.gov/CBBresearch/Lu/Demo/RESTful/tmTool.cgi/Disease/" + ids + "/pubtator/"
 
 
+# Get call that allows me to speciy Disease as type, enter 100-1000 PMIDS,
+# and specify format as BioC, json, or PubMed
+response = requests.get(url)
+#Print the responses in (currently) Pubtator Format
+print (response.text.encode("utf-8"))
 
-#POST https://www.ncbi.nlm.nih.gov/research/pubtator-api/publications/export/pubtator?pmids= 31555894,31556034
+#convert the Response to a string in Pubtator Format (henceforth ptf)
+ptf_str = response.text
+
+#Write the ptf string to a csv file
+with open ("output.csv", "w")as f:
+    f.write(ptf_str)
+    
+
+#Read in csv file and convert to df
+columns = ['PMID', 'Delete1', 'Delete2', 'Disease','Delete3', 'MESH']
+df = pd.DataFrame(columns = columns)
+df = pd.read_csv('output.csv', delimiter = '\t',
+                 names = columns)
+#Delete unwanted columns
+del df ['Delete1']
+del df ['Delete2']
+del df ['Delete3']
+
+
+
+
+
+
