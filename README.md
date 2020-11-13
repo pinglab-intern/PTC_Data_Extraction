@@ -14,8 +14,15 @@ This script requires:
 
 Both may be installed through *pip*, e.g., `pip install biopython pandas`.
 
-
 ## Running the script
 
+Run this script as `python '.\PMID to BioC Retrieval Using PubMed and PTC APIs.py'`
+
+By default, the script searches for all documents corresponding to the query "heart failure" - please change the string for the search query in the script.
+
+Output is written to "output.csv".
+
+The data frame is not saved but may be passed to another function.
+
 ## Credits
-Developed by Marlee Zinsser in the Ping Lab at UCLA in Fall 2019.
+Developed by Marlee Zinsser in the Ping Lab at UCLA while working with Harry Caufield in Fall 2019.
